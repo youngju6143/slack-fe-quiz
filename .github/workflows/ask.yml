@@ -1,0 +1,23 @@
+name: 오늘의 질문 보내기
+
+on:
+  schedule:
+    # GitHub cron은 UTC 기준. 00:40 UTC = 평일 KST 09:40
+    # (GitHub 스케줄은 보통 5~15분 늦게 실행돼서 10분 일찍 걸어둠)
+    - cron: '40 0 * * 1-5'
+  workflow_dispatch: # Actions 탭에서 수동 실행(테스트용)
+
+jobs:
+  ask:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run ask
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
