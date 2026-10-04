@@ -1,4 +1,4 @@
-import { env } from './config.js';
+import { env } from "./config.js";
 
 export interface Grade {
   score: number;
@@ -29,31 +29,46 @@ const SYSTEM = `당신은 국내 IT 기업의 시니어 프론트엔드 면접�
 - 문단은 줄바꿈으로 2~4개로 나누세요.`;
 
 const SCHEMA = {
-  type: 'OBJECT',
+  type: "OBJECT",
   properties: {
-    score: { type: 'INTEGER', description: '0~100 점수' },
-    summary: { type: 'STRING', description: '한 줄 총평' },
-    strengths: { type: 'ARRAY', items: { type: 'STRING' } },
-    improvements: { type: 'ARRAY', items: { type: 'STRING' } },
-    script: { type: 'STRING' },
+    score: { type: "INTEGER", description: "0~100 점수" },
+    summary: { type: "STRING", description: "한 줄 총평" },
+    strengths: { type: "ARRAY", items: { type: "STRING" } },
+    improvements: { type: "ARRAY", items: { type: "STRING" } },
+    script: { type: "STRING" },
   },
-  required: ['score', 'summary', 'strengths', 'improvements', 'script'],
-  propertyOrdering: ['score', 'summary', 'strengths', 'improvements', 'script'],
+  required: ["score", "summary", "strengths", "improvements", "script"],
+  propertyOrdering: ["score", "summary", "strengths", "improvements", "script"],
 };
 
-export async function gradeAnswer(question: string, answer: string): Promise<Grade> {
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+export async function gradeAnswer(
+  question: string,
+  answer: string,
+): Promise<Grade> {
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: SYSTEM }] },
-    contents: [{ role: 'user', parts: [{ text: `[질문]\n${question}\n\n[지원자 답변]\n${answer}` }] }],
-    generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0.3 },
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: `[질문]\n${question}\n\n[지원자 답변]\n${answer}` }],
+      },
+    ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: SCHEMA,
+      temperature: 0.3,
+    },
   });
 
   for (let attempt = 1; ; attempt++) {
     const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') },
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": env("GEMINI_API_KEY"),
+      },
       body,
     });
 
@@ -61,13 +76,15 @@ export async function gradeAnswer(question: string, answer: string): Promise<Gra
       await new Promise((r) => setTimeout(r, attempt * 10_000));
       continue;
     }
-    if (!res.ok) throw new Error(`Gemini API 오류 ${res.status}: ${await res.text()}`);
+    if (!res.ok)
+      throw new Error(`Gemini API 오류 ${res.status}: ${await res.text()}`);
 
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
     };
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error(`Gemini 응답이 비어 있어요: ${JSON.stringify(data)}`);
+    if (!text)
+      throw new Error(`Gemini 응답이 비어 있어요: ${JSON.stringify(data)}`);
     return JSON.parse(text) as Grade;
   }
 }
