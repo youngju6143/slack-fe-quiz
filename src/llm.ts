@@ -41,11 +41,42 @@ const SCHEMA = {
   propertyOrdering: ["score", "summary", "strengths", "improvements", "script"],
 };
 
+/** 503(과부하)·429(한도 초과)처럼 잠시 후 다시 시도하면 되는 오류 */
+export class TransientGeminiError extends Error {}
+
+const MAX_ATTEMPTS = 5;
+
 export async function gradeAnswer(
   question: string,
   answer: string,
 ): Promise<Grade> {
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  // 기본 모델이 과부하면 GEMINI_FALLBACK_MODELS(쉼표 구분)에 적힌 모델로 차례대로 시도
+  const models = [
+    process.env.GEMINI_MODEL || "gemini-3.8-flash",
+    ...(process.env.GEMINI_FALLBACK_MODELS ?? "")
+      .split(",")
+      .map((m) => m.trim())
+      .filter(Boolean),
+  ];
+
+  let lastError: Error | undefined;
+  for (const model of models) {
+    try {
+      return await callGemini(model, question, answer);
+    } catch (e) {
+      if (!(e instanceof TransientGeminiError)) throw e;
+      lastError = e;
+      console.warn(`${model} 사용 불가, 다음 모델로 넘어갑니다: ${e.message}`);
+    }
+  }
+  throw lastError!;
+}
+
+async function callGemini(
+  model: string,
+  question: string,
+  answer: string,
+): Promise<Grade> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: SYSTEM }] },
@@ -72,12 +103,18 @@ export async function gradeAnswer(
       body,
     });
 
-    if ((res.status === 429 || res.status >= 500) && attempt < 3) {
-      await new Promise((r) => setTimeout(r, attempt * 10_000));
+    const transient = res.status === 429 || res.status >= 500;
+    if (transient && attempt < MAX_ATTEMPTS) {
+      // 5s → 10s → 20s → 40s (+ 지터), Retry-After 헤더가 있으면 그 값을 우선
+      const retryAfter = Number(res.headers.get("retry-after")) * 1000;
+      const backoff = 5_000 * 2 ** (attempt - 1) + Math.random() * 1_000;
+      await new Promise((r) => setTimeout(r, retryAfter || backoff));
       continue;
     }
-    if (!res.ok)
-      throw new Error(`Gemini API 오류 ${res.status}: ${await res.text()}`);
+    if (!res.ok) {
+      const msg = `Gemini API 오류 ${res.status} (${model}): ${await res.text()}`;
+      throw transient ? new TransientGeminiError(msg) : new Error(msg);
+    }
 
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];

@@ -1,6 +1,6 @@
 import { WebClient } from '@slack/web-api';
 import { env, GRADE_EVENT, QUESTION_EVENT } from './config.js';
-import { gradeAnswer, type Grade } from './llm.js';
+import { gradeAnswer, TransientGeminiError, type Grade } from './llm.js';
 
 const slack = new WebClient(env('SLACK_BOT_TOKEN'));
 const channel = env('SLACK_CHANNEL_ID');
@@ -44,6 +44,11 @@ for (const q of questions) {
       });
       graded++;
     } catch (e) {
+      if (e instanceof TransientGeminiError) {
+        // 채점 메시지를 안 남겼으니 15분 뒤 다음 실행에서 자동으로 다시 시도됨
+        console.warn(`일시적 오류로 채점 보류, 다음 실행에서 재시도 (answer ts=${answer.ts}): ${e.message}`);
+        continue;
+      }
       console.error(`채점 실패 (answer ts=${answer.ts})`, e);
       process.exitCode = 1;
     }
