@@ -2,10 +2,12 @@ name: 오늘의 질문 보내기
 
 on:
   schedule:
-    # GitHub cron은 UTC 기준. 00:40 UTC = 평일 KST 09:40
-    # (GitHub 스케줄은 보통 5~15분 늦게 실행돼서 10분 일찍 걸어둠)
-    - cron: '40 0 * * 1-5'
-  workflow_dispatch: # Actions 탭에서 수동 실행(테스트용)
+    # 정시 실행은 외부 cron(cron-job.org)이 KST 09:50에 workflow_dispatch로 담당.
+    # GitHub cron은 몇 시간씩 늦거나 누락될 수 있어서 백업으로만 둠 (이미 올렸으면 ask.ts가 건너뜀)
+    # UTC 기준: 00:50 = KST 09:50, 02:00 = KST 11:00
+    - cron: '50 0 * * 1-5'
+    - cron: '0 2 * * 1-5'
+  workflow_dispatch: # 외부 cron 호출 + Actions 탭에서 수동 실행
 
 jobs:
   ask:

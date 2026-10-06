@@ -14,6 +14,25 @@ function weekdayCount(now = new Date()): number {
   return Math.floor(days / 7) * 5 + Math.min(days % 7, 5);
 }
 
+// 외부 cron과 GitHub cron이 둘 다 돌 수 있으니, 오늘(KST) 이미 올렸으면 건너뜀
+const kstMidnight = Math.floor((Date.now() + 9 * 3_600_000) / 86_400_000) * 86_400 - 9 * 3_600;
+const auth = await slack.auth.test();
+const history = await slack.conversations.history({
+  channel,
+  oldest: String(kstMidnight),
+  include_all_metadata: true,
+  limit: 100,
+});
+const alreadyAsked = (history.messages ?? []).some(
+  (m) =>
+    ((!!m.bot_id && m.bot_id === auth.bot_id) || m.user === auth.user_id) &&
+    m.metadata?.event_type === QUESTION_EVENT,
+);
+if (alreadyAsked) {
+  console.log('오늘 질문은 이미 올라가 있어서 건너뜁니다.');
+  process.exit(0);
+}
+
 const index = weekdayCount() % QUESTIONS.length;
 const question = QUESTIONS[index];
 
