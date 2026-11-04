@@ -1,5 +1,5 @@
 import { WebClient } from '@slack/web-api';
-import { env, QUESTION_EVENT } from './config.js';
+import { BOT_NAME, env, QUESTION_EVENT } from './config.js';
 import { QUESTIONS } from './questions.js';
 
 const slack = new WebClient(env('SLACK_BOT_TOKEN'));
@@ -38,6 +38,7 @@ const question = QUESTIONS[index];
 
 await slack.chat.postMessage({
   channel,
+  username: BOT_NAME,
   text: `*[오늘의 FE 질문 #${index + 1}]*\n${question}\n\n_스레드로 답변을 달면 AI가 채점해 드려요._`,
   metadata: {
     event_type: QUESTION_EVENT,

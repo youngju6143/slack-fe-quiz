@@ -1,5 +1,5 @@
 import { WebClient } from '@slack/web-api';
-import { env, GRADE_EVENT, QUESTION_EVENT } from './config.js';
+import { BOT_NAME, env, GRADE_EVENT, QUESTION_EVENT } from './config.js';
 import { gradeAnswer, TransientGeminiError, type Grade } from './llm.js';
 
 const slack = new WebClient(env('SLACK_BOT_TOKEN'));
@@ -38,6 +38,7 @@ for (const q of questions) {
       const result = await gradeAnswer(questionText, answer.text!);
       await slack.chat.postMessage({
         channel,
+        username: BOT_NAME,
         thread_ts: q.ts,
         text: format(result, answer.user),
         metadata: { event_type: GRADE_EVENT, event_payload: { answer_ts: answer.ts! } },
